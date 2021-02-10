@@ -102,10 +102,6 @@ function addUtils() {
     addEntry('utils', 'Utils.js', 'utils');
 }
 
-function addApi() {
-    addEntry('api', 'Api.js', 'api');
-}
-
 function addServices() {
     addEntry('confirmationservice', 'ConfirmationService.js', 'confirmationservice');
     addEntry('confirmationeventbus', 'ConfirmationEventBus.js', 'confirmationeventbus');
@@ -120,7 +116,6 @@ addSFC();
 addDirectives();
 addConfig();
 addUtils();
-addApi();
 addServices();
 
 export default entries;

@@ -20,8 +20,8 @@
             <table ref="table" role="grid">
                 <DTTableHeader :columnGroup="headerColumnGroup" :columns="columns" :rowGroupMode="rowGroupMode"
                         :groupRowsBy="groupRowsBy" :resizableColumns="resizableColumns" :allRowsSelected="allRowsSelected" :empty="empty"
-                        :sortMode="sortMode" :sortField="d_sortField" :sortOrder="d_sortOrder" :multiSortMeta="d_multiSortMeta" :filters="d_filters" :filtersStore="filters" :filterDisplay="filterDisplay"
-                        @column-click="onColumnHeaderClick($event)" @column-mousedown="onColumnHeaderMouseDown($event)" @filter-change="onFilterChange" @filter-apply="onFilterApply"
+                        :sortMode="sortMode" :sortField="d_sortField" :sortOrder="d_sortOrder" :multiSortMeta="d_multiSortMeta"
+                        @column-click="onColumnHeaderClick($event)" @column-mousedown="onColumnHeaderMouseDown($event)"
                         @column-dragstart="onColumnHeaderDragStart($event)" @column-dragover="onColumnHeaderDragOver($event)" @column-dragleave="onColumnHeaderDragLeave($event)" @column-drop="onColumnHeaderDrop($event)"
                         @column-resizestart="onColumnResizeStart($event)" @checkbox-change="toggleRowsWithCheckbox($event)" />
                 <DTTableBody :value="dataToRender" :columns="columns" :empty="empty" :dataKey="dataKey" :selection="selection" :selectionKeys="d_selectionKeys" :selectionMode="selectionMode" :contextMenu="contextMenu" :contextMenuSelection="contextMenuSelection"
@@ -82,9 +82,7 @@
                         :sortMode="sortMode" :sortField="d_sortField" :sortOrder="d_sortOrder" :multiSortMeta="d_multiSortMeta"
                         @column-click="onColumnHeaderClick($event)" @column-mousedown="onColumnHeaderMouseDown($event)"
                         @column-dragstart="onColumnHeaderDragStart($event)" @column-dragover="onColumnHeaderDragOver($event)" @column-dragleave="onColumnHeaderDragLeave($event)" @column-drop="onColumnHeaderDrop($event)"
-                        @column-resizestart="onColumnResizeStart($event)" @checkbox-change="toggleRowsWithCheckbox($event)"
-                        @operator-change="$emit('operator-change',$event)" @matchmode-change="$emit('matchmode-change',$event)"
-                        @constraint-add="$emit('constraint-add',$event)" @constraint-remove="$emit('constraint-remove',$event)" @apply-click="$emit('apply-click',$event)" />
+                        @column-resizestart="onColumnResizeStart($event)" @checkbox-change="toggleRowsWithCheckbox($event)" />
                 </template>
                 <template #body="slotProps">
                     <DTTableBody :value="dataToRender" :columns="slotProps.columns" :empty="empty" :dataKey="dataKey" :selection="selection" :selectionKeys="d_selectionKeys" :selectionMode="selectionMode" :contextMenu="contextMenu" :contextMenuSelection="contextMenuSelection"
@@ -132,8 +130,9 @@
 </template>
 
 <script>
-import {ObjectUtils,DomHandler} from 'primevue/utils';
-import {FilterMatchMode,FilterOperator,FilterService} from 'primevue/api';
+import {ObjectUtils} from 'primevue/utils';
+import {FilterUtils} from 'primevue/utils';
+import {DomHandler} from 'primevue/utils';
 import Paginator from 'primevue/paginator';
 import ScrollableView from './ScrollableView.vue';
 import TableHeader from './TableHeader.vue';
@@ -145,8 +144,7 @@ export default {
         'update:selection', 'row-select', 'row-unselect', 'update:contextMenuSelection', 'row-contextmenu', 'row-unselect-all', 'row-select-all',
         'column-resize-end', 'column-reorder', 'row-reorder', 'update:expandedRows', 'row-collapse', 'row-expand',
         'update:expandedRowGroups', 'rowgroup-collapse', 'rowgroup-expand', 'update:filters', 'virtual-scroll', 'state-restore', 'state-save',
-        'cell-edit-init', 'cell-edit-complete', 'cell-edit-cancel', 'update:editingRows', 'row-edit-init', 'row-edit-save', 'row-edit-cancel',
-        'operator-change', 'matchmode-change', 'constraint-add', 'constraint-remove', 'filter-clear', 'apply-click'],
+        'cell-edit-init', 'cell-edit-complete', 'cell-edit-cancel', 'update:editingRows', 'row-edit-init', 'row-edit-save', 'row-edit-cancel'],
     props: {
         value: {
             type: Array,
@@ -234,14 +232,6 @@ export default {
         },
         filters: {
             type: Object,
-            default: null
-        },
-        filterDisplay: {
-            type: String,
-            default: null
-        },
-        globalFilterFields: {
-            type: Array,
             default: null
         },
         filterLocale: {
@@ -387,8 +377,7 @@ export default {
             d_selectionKeys: null,
             d_expandedRowKeys: null,
             d_columnOrder: null,
-            d_editingRowKeys: null,
-            d_filters: this.cloneFilters(this.filters)
+            d_editingRowKeys: null
         };
     },
     rowTouched: false,
@@ -439,9 +428,6 @@ export default {
             if (this.dataKey) {
                 this.updateEditingRowKeys(newValue);
             }
-        },
-        filters(newValue) {
-            this.d_filters = this.cloneFilters(newValue);
         }
     },
     beforeMount() {
@@ -493,7 +479,7 @@ export default {
                 const targetNode = event.target;
                 const columnField = this.columnProp(column, 'sortField') || this.columnProp(column, 'field');
 
-                if (DomHandler.hasClass(targetNode, 'p-sortable-column') || DomHandler.hasClass(targetNode, 'p-column-title') || DomHandler.hasClass(targetNode, 'p-column-header-content')
+                if (DomHandler.hasClass(targetNode, 'p-sortable-column') || DomHandler.hasClass(targetNode, 'p-column-title')
                     || DomHandler.hasClass(targetNode, 'p-sortable-column-icon') || DomHandler.hasClass(targetNode.parentElement, 'p-sortable-column-icon')) {
                     DomHandler.clearSelection();
 
@@ -603,72 +589,46 @@ export default {
             this.d_first = 0;
             this.$emit('update:first', this.d_first);
 
-            if (!data) {
-                return;
-            }
-
-            let globalFilterFieldsArray;
-            if (this.filters['global']) {
-                globalFilterFieldsArray = this.globalFilterFields|| this.columns.map(col => this.columnProp(col, 'filterField') || this.columnProp(col, 'field'));
-            }
-
             let filteredValue = [];
 
-            for (let i = 0; i < data.length; i++) {
+            for(let i = 0; i < data.length; i++) {
                 let localMatch = true;
                 let globalMatch = false;
-                let localFiltered = false;
 
-                for (let prop in this.filters) {
-                    if (Object.prototype.hasOwnProperty.call(this.filters, prop) && prop !== 'global') {
-                        localFiltered = true;
-                        let filterField = prop;
-                        let filterMeta = this.filters[filterField];
+                for(let j = 0; j < this.columns.length; j++) {
+                    let col = this.columns[j];
+                    let columnField = this.columnProp(col, 'filterField') || this.columnProp(col, 'field');
 
-                        if (filterMeta.operator) {
-                            for (let filterConstraint of filterMeta.constraints) {
-                                localMatch = this.executeLocalFilter(filterField, data[i], filterConstraint);
-
-                                if ((filterMeta.operator === FilterOperator.OR && localMatch) || (filterMeta.operator === FilterOperator.AND && !localMatch)) {
-                                    break;
-                                }
-                            }
+                    //local
+                    if (Object.prototype.hasOwnProperty.call(this.filters, columnField)) {
+                        let filterValue = this.filters[columnField];
+                        let dataFieldValue = ObjectUtils.resolveFieldData(data[i], columnField);
+                        let filterConstraint = this.columnProp(col, 'filterMatchMode') === 'custom' ? (col.props && col.props.filterFunction) : FilterUtils[this.columnProp(col, 'filterMatchMode')||'startsWith'];
+                        if (!filterConstraint(dataFieldValue, filterValue, this.filterLocale)) {
+                            localMatch = false;
                         }
-                        else {
-                            localMatch = this.executeLocalFilter(filterField, data[i], filterMeta);
-                        }
-                        
+
                         if (!localMatch) {
                             break;
                         }
                     }
-                }
 
-                if (this.filters['global'] && !globalMatch && globalFilterFieldsArray) {
-                    for(let j = 0; j < globalFilterFieldsArray.length; j++) {
-                        let globalFilterField = globalFilterFieldsArray[j];
-                        globalMatch = FilterService.filters[this.filters['global'].matchMode || FilterMatchMode.CONTAINS](ObjectUtils.resolveFieldData(data[i], globalFilterField), this.filters['global'].value, this.filterLocale);
-
-                        if (globalMatch) {
-                            break;
-                        }
+                    if (!this.columnProp(col, 'excludeGlobalFilter') && this.hasGlobalFilter() && !globalMatch) {
+                        globalMatch = FilterUtils.contains(ObjectUtils.resolveFieldData(data[i], columnField), this.filters['global'], this.filterLocale);
                     }
                 }
 
-                let matches;
-                if (this.filters['global']) {
-                    matches = localFiltered ? (localFiltered && localMatch && globalMatch) : globalMatch;
-                }
-                else {
-                    matches = localFiltered && localMatch;
+                let matches = localMatch;
+                if (this.hasGlobalFilter()) {
+                    matches = localMatch && globalMatch;
                 }
 
                 if (matches) {
-                    filteredValue.push(this.value[i]);
+                    filteredValue.push(data[i]);
                 }
             }
 
-            if (filteredValue.length === this.value.length) {
+            if (filteredValue.length === data.length) {
                 filteredValue = data;
             }
 
@@ -677,14 +637,6 @@ export default {
             this.$emit('filter', filterEvent);
 
             return filteredValue;
-        },
-        executeLocalFilter(field, rowData, filterMeta) {
-            let filterValue = filterMeta.value;
-            let filterMatchMode = filterMeta.matchMode || FilterMatchMode.STARTS_WITH;
-            let dataFieldValue = ObjectUtils.resolveFieldData(rowData, field);
-            let filterConstraint = FilterService.filters[filterMatchMode];
-
-            return filterConstraint(dataFieldValue, filterValue, this.filterLocale);
         },
         onRowClick(e) {
             const event = e.originalEvent;
@@ -1705,22 +1657,6 @@ export default {
         },
         getChildren() {
             return this.$slots.default ? this.$slots.default() : null;
-        },
-        onFilterChange(filters) {
-            this.d_filters = filters;
-        },
-        onFilterApply() {
-            this.$emit('update:filters', this.d_filters);
-        },
-        cloneFilters() {
-            let cloned = {};
-            if (this.filters) {
-                Object.entries(this.filters).forEach(([prop,value]) => {
-                    cloned[prop] = value.operator ? {operator: value.operator, constraints: value.constraints.map(constraint => {return {...constraint}})} : {...value};
-                });
-            }
-
-            return cloned;
         }
     },
     computed: {
@@ -2049,11 +1985,6 @@ export default {
     border: 1px solid transparent;
 }
 
-.p-column-header-content {
-    display: flex;
-    align-items: center;
-}
-
 .p-datatable .p-column-resizer-helper {
     width: 1px;
     position: absolute;
@@ -2094,67 +2025,5 @@ export default {
     align-items: center;
     justify-content: center;
     z-index: 2;
-}
-
-/* Filter */
-.p-column-filter-row {
-    display: flex;
-    align-items: center;
-    width: 100%;
-}
-
-.p-column-filter-menu {
-    display: inline-flex;
-    margin-left: auto;
-}
-
-.p-column-filter-row .p-column-filter-element {
-    flex: 1 1 auto;
-    width: 1%;
-}
-
-.p-column-filter-menu-button,
-.p-column-filter-clear-button {
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    text-decoration: none;
-    overflow: hidden;
-    position: relative;
-}
-
-.p-column-filter-overlay {
-    position: absolute;
-}
-
-.p-column-filter-row-items {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.p-column-filter-row-item {
-    cursor: pointer;
-}
-
-.p-column-filter-add-button,
-.p-column-filter-remove-button {
-    justify-content: center;
-}
-
-.p-column-filter-add-button .p-button-label, 
-.p-column-filter-remove-button .p-button-label {
-    flex-grow: 0;
-}
-
-.p-column-filter-buttonbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.p-column-filter-buttonbar .p-button:not(.p-button-icon-only) {
-    width: auto;
 }
 </style>

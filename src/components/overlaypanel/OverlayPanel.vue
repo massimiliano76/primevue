@@ -170,7 +170,7 @@ export default {
                 this.resizeListener = null;
             }
         },
-        isTargetClicked(event) {
+        isTargetClicked() {
             return this.target && (this.target === event.target || this.target.contains(event.target));
         },
         appendContainer() {
